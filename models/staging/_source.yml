@@ -1,0 +1,9 @@
+sources:
+  - name: raw
+    database: snackco-analytics
+    schema: raw
+    tables:
+      - name: products
+      - name: sales
+      - name: stores
+      - name: stock
