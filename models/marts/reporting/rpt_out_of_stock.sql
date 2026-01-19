@@ -57,26 +57,36 @@ joined as (
 
 ),
 
-with_streaks as (
+-- step 1: build a "group id" that increments every time we are NOT out of stock
+with_groups as (
 
   select
     j.*,
-
-    case
-      when j.is_out_of_stock = false then 0
-      else
-        row_number() over (
-          partition by j.store_key, j.product_key,
-          sum(case when j.is_out_of_stock = false then 1 else 0 end)
-            over (partition by j.store_key, j.product_key order by j.date)
-          order by j.date
-        )
-    end as oos_streak_days
-
+    sum(case when j.is_out_of_stock = false then 1 else 0 end)
+      over (partition by j.store_key, j.product_key order by j.date) as oos_group
   from joined j
+
+),
+
+-- step 2: compute streak length within each group
+final as (
+
+  select
+    wg.*,
+    case
+      when wg.is_out_of_stock = false then 0
+      else row_number() over (
+        partition by wg.store_key, wg.product_key, wg.oos_group
+        order by wg.date
+      )
+    end as oos_streak_days
+  from with_groups wg
 
 )
 
-select *
-from with_streaks
+select
+  -- keep output tidy (do not expose the helper group)
+  * except (oos_group)
+from final
 order by date, store_id, product_id
+
